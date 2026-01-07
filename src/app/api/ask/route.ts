@@ -42,6 +42,24 @@ const supabase = createClient(
 const EMBED_MODEL = process.env.OPENAI_EMBED_MODEL || "text-embedding-3-small";
 const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || "gpt-4.1-mini";
 
+const SYSTEM_PROMPT = `
+You are an expert analyst answering questions using Google Sheets data.
+
+Rules:
+- Use ONLY the provided Sources.
+- Treat each Source as authoritative spreadsheet data.
+- Many sheets contain multiple tables per tab.
+- Column headers define meaning; match rows to headers carefully.
+- Prefer exact matches (names, emails, roles, IDs).
+- If information is missing or ambiguous, say so clearly.
+- Never invent data.
+- Cite sources using [1], [2], etc. based on the Source number.
+
+If the answer cannot be determined from the Sources, respond:
+"I don’t see this information in the indexed sheets."
+`.trim();
+
+
 function sheetUrl(spreadsheetId: string, gid?: number | null) {
   return gid
     ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${gid}`
@@ -210,25 +228,22 @@ export async function POST(req: Request) {
     });
 
     const completion = await openai.chat.completions.create({
-      model: CHAT_MODEL,
-      temperature: 0.2,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You answer questions using ONLY the provided Sources from Google Sheets. " +
-            "If the sources don't contain the answer, say so clearly. " +
-            "Cite sources like [1] or [2,3] when making claims. " +
-            "Never claim to know how many sheets are indexed unless sources explicitly state that."
-        },
-        {
-          role: "user",
-          content: `Question: ${question}\n\nSources:\n\n${sources.join(
-            "\n\n---\n\n"
-          )}`
-        }
-      ]
-    });
+  model: CHAT_MODEL,
+  temperature: 0.2,
+  messages: [
+    {
+      role: "system",
+      content: SYSTEM_PROMPT
+    },
+    {
+      role: "user",
+      content: `Question: ${question}\n\nSources:\n\n${sources.join(
+        "\n\n---\n\n"
+      )}`
+    }
+  ]
+});
+
 
     const answer = completion.choices[0]?.message?.content?.trim() || "";
 
