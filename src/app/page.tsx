@@ -81,7 +81,7 @@ export default function CrewAskPage() {
           <input
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Ask Metalhead about PizzaDAO"
+            placeholder="Ask Metalhead about PizzaDAO Crews"
             className="flex-1 rounded-lg bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:ring-2 focus:ring-zinc-700 transition-all"
             onKeyDown={(e) => {
               if (e.key === "Enter" && question.trim() && !loading) ask();
