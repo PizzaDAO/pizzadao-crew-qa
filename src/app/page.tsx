@@ -1,6 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
 
 type Citation = {
   spreadsheet_id: string;
@@ -21,30 +26,83 @@ type Evidence = {
 export default function CrewAskPage() {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
-  const [answer, setAnswer] = useState("");
+
+  // Conversation state
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      role: "assistant",
+      content:
+        "Ask Metalhead about PizzaDAO Crews. You can ask follow-ups and I’ll keep context."
+    }
+  ]);
+
+  // Latest retrieval artifacts (for the most recent assistant response)
   const [citations, setCitations] = useState<Citation[]>([]);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [showEvidence, setShowEvidence] = useState(false);
 
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const canAsk = useMemo(
+    () => question.trim().length > 0 && !loading,
+    [question, loading]
+  );
+
   async function ask() {
+    const q = question.trim();
+    if (!q || loading) return;
+
     setLoading(true);
-    setAnswer("");
+    setQuestion("");
+
+    // Clear artifacts for new turn
     setCitations([]);
     setEvidence([]);
+    setShowEvidence(false);
+
+    // Append user message immediately (optimistic UI)
+    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: q }];
+    setMessages(nextMessages);
+
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, topK: 10 })
+        // NEW: send conversation
+        body: JSON.stringify({ messages: nextMessages, topK: 35 })
       });
+
       const json = await res.json();
-      setAnswer(json.answer || "");
-      setCitations(json.citations || []);
-      setEvidence(json.evidence || []);
+
+      const answer =
+        typeof json.answer === "string" && json.answer.trim()
+          ? json.answer.trim()
+          : "I didn’t get an answer back (empty response).";
+
+      setMessages((prev) => [...prev, { role: "assistant", content: answer }]);
+
+      setCitations(Array.isArray(json.citations) ? json.citations : []);
+      setEvidence(Array.isArray(json.evidence) ? json.evidence : []);
+    } catch (e: any) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Request failed: ${String(e?.message || e)}`
+        }
+      ]);
     } finally {
       setLoading(false);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     }
   }
+
+  const latestAssistantAnswer = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "assistant") return messages[i].content;
+    }
+    return "";
+  }, [messages]);
 
   return (
     <div className="min-h-screen bg-black text-white p-6">
@@ -69,59 +127,86 @@ export default function CrewAskPage() {
 
         {/* Branding Image */}
         <div className="flex justify-center py-4">
-          <img 
-            src="https://i.imgur.com/P85PEHz.png" 
-            alt="Metalhead PizzaDAO" 
+          <img
+            src="https://i.imgur.com/P85PEHz.png"
+            alt="Metalhead PizzaDAO"
             className="w-full max-w-md rounded-lg shadow-2xl"
           />
         </div>
 
-        {/* Search Bar */}
-        <div className="flex gap-2">
-          <input
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Ask Metalhead about PizzaDAO Crews"
-            className="flex-1 rounded-lg bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:ring-2 focus:ring-zinc-700 transition-all"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && question.trim() && !loading) ask();
-            }}
-          />
-          <button
-            onClick={ask}
-            disabled={!question.trim() || loading}
-            className="rounded-lg bg-white text-black px-6 py-2 font-semibold hover:bg-zinc-200 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "Searching…" : "Ask"}
-          </button>
+        {/* Conversation Window */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow-xl overflow-hidden">
+          <div className="max-h-[46vh] overflow-y-auto p-4 space-y-4">
+            {messages.map((m, idx) => (
+              <div
+                key={idx}
+                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                <div
+                  className={[
+                    "max-w-[90%] rounded-2xl px-4 py-3 whitespace-pre-wrap leading-relaxed",
+                    m.role === "user"
+                      ? "bg-white text-black font-medium"
+                      : "bg-zinc-900 border border-zinc-800 text-white"
+                  ].join(" ")}
+                >
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input Row */}
+          <div className="border-t border-zinc-800 p-3 bg-zinc-950">
+            <div className="flex gap-2">
+              <input
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="Ask Metalhead about PizzaDAO Crews"
+                className="flex-1 rounded-lg bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:ring-2 focus:ring-zinc-700 transition-all"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && canAsk) ask();
+                }}
+              />
+              <button
+                onClick={ask}
+                disabled={!canAsk}
+                className="rounded-lg bg-white text-black px-6 py-2 font-semibold hover:bg-zinc-200 disabled:opacity-50 transition-colors"
+              >
+                {loading ? "Searching…" : "Ask"}
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Results Sections */}
-        {answer && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-6 shadow-xl">
-            <div className="whitespace-pre-wrap leading-relaxed text-lg">{answer}</div>
-            <div className="mt-4 flex gap-4 border-t border-zinc-900 pt-4">
+        {/* Latest Answer Actions */}
+        {latestAssistantAnswer && (
+          <div className="flex gap-4">
+            <button
+              className="text-sm font-medium text-zinc-400 hover:text-white transition-colors"
+              onClick={() => navigator.clipboard.writeText(latestAssistantAnswer)}
+            >
+              Copy latest answer
+            </button>
+
+            {evidence.length > 0 && (
               <button
                 className="text-sm font-medium text-zinc-400 hover:text-white transition-colors"
-                onClick={() => navigator.clipboard.writeText(answer)}
+                onClick={() => setShowEvidence((v) => !v)}
               >
-                Copy answer
+                {showEvidence ? "Hide evidence" : "Show evidence"}
               </button>
-              {evidence.length > 0 && (
-                <button
-                  className="text-sm font-medium text-zinc-400 hover:text-white transition-colors"
-                  onClick={() => setShowEvidence((v) => !v)}
-                >
-                  {showEvidence ? "Hide evidence" : "Show evidence"}
-                </button>
-              )}
-            </div>
+            )}
           </div>
         )}
 
+        {/* Sources */}
         {citations.length > 0 && (
           <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-            <div className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wider">Sources</div>
+            <div className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wider">
+              Sources
+            </div>
             <ul className="space-y-2 text-sm">
               {citations.slice(0, 10).map((c, idx) => (
                 <li key={`${c.spreadsheet_id}-${idx}`} className="flex flex-col">
@@ -142,6 +227,7 @@ export default function CrewAskPage() {
           </div>
         )}
 
+        {/* Evidence */}
         {showEvidence && evidence.length > 0 && (
           <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
             <div className="text-sm font-semibold mb-4 text-zinc-400 uppercase tracking-wider">
