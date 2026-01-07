@@ -32,7 +32,7 @@ export default function CrewAskPage() {
     {
       role: "assistant",
       content:
-        "Ask Metalhead about PizzaDAO Crews. You can ask follow-ups and I’ll keep context."
+        "Ask Metalhead about PizzaDAO Crews"
     }
   ]);
 
