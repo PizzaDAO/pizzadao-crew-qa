@@ -9,6 +9,7 @@ type ChatMessage = {
 
 type Citation = {
   spreadsheet_id: string;
+  spreadsheet_title?: string | null; // ✅ add this
   url: string;
   sheet_name: string;
   a1_range: string;
