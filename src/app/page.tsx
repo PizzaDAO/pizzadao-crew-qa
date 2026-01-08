@@ -209,7 +209,7 @@ export default function CrewAskPage() {
             </div>
             <ul className="space-y-2 text-sm">
               {citations.slice(0, 10).map((c, idx) => (
-                <li key={`${c.spreadsheet_id}-${idx}`} className="flex flex-col">
+                <li key={`${c.spreadsheet_title ?? c.spreadsheet_id}-${idx}`} className="flex flex-col">
                   <a
                     href={c.url}
                     target="_blank"
