@@ -32,7 +32,7 @@ export default function CrewAskPage() {
     {
       role: "assistant",
       content:
-        "Ask Metalhead about PizzaDAO Crews"
+        "How can I help?"
     }
   ]);
 
