@@ -24,6 +24,7 @@ type AskBody = {
 type MatchChunkRow = {
   id: string;
   spreadsheet_id: string;
+  spreadsheet_title: string | null;
   sheet_name: string;
   a1_range: string;
   text: string;
@@ -205,16 +206,25 @@ export async function POST(req: Request) {
     const answer = completion.choices[0]?.message?.content?.trim() || "";
 
     // 4) Citations + evidence
-    const citations = chunks.map((c) => {
-      const gid = c.metadata?.gid ?? null;
-      return {
-        spreadsheet_id: c.spreadsheet_id,
-        url: sheetUrl(c.spreadsheet_id, gid),
-        sheet_name: c.sheet_name,
-        a1_range: c.a1_range,
-        similarity: c.similarity
-      };
-    });
+  const citations = Array.from(
+  new Map(
+    chunks.map(c => [
+      `${c.spreadsheet_id}|${c.sheet_name}|${c.a1_range}`,
+      c
+    ])
+  ).values()
+).map(c => {
+  const gid = c.metadata?.gid ?? null;
+  return {
+    spreadsheet_id: c.spreadsheet_id,
+    spreadsheet_title: c.spreadsheet_title ?? c.spreadsheet_id,
+    url: sheetUrl(c.spreadsheet_id, gid),
+    sheet_name: c.sheet_name,
+    a1_range: c.a1_range,
+    similarity: c.similarity
+  };
+});
+
 
     const evidence = chunks.map((c, i) => ({
       source: i + 1,

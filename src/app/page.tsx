@@ -216,7 +216,7 @@ export default function CrewAskPage() {
                     rel="noreferrer"
                     className="text-blue-400 hover:underline font-medium"
                   >
-                    {c.spreadsheet_id}
+                    {c.spreadsheet_title}
                   </a>
                   <span className="text-zinc-500">
                     {c.sheet_name} • {c.a1_range}
