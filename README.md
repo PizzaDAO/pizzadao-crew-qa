@@ -1,5 +1,6 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+The Indexer's github is at https://github.com/PizzaDAO/pizzadao-crew-indexer
 ## Getting Started
 
 First, run the development server:
