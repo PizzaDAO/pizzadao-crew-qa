@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -24,15 +24,78 @@ type Evidence = {
   preview: string;
 };
 
+function AnswerWithLinkedCitations({
+  text,
+  citations
+}: {
+  text: string;
+  citations: { url: string }[];
+}) {
+  // Matches: [1] or [1,2] or [1, 2, 3]
+  const re = /\[(\d+(?:\s*,\s*\d+)*)\]/g;
+
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = re.exec(text)) !== null) {
+    const start = m.index;
+    const end = re.lastIndex;
+
+    // normal text before the citation
+    if (start > last) parts.push(text.slice(last, start));
+
+    const nums = m[1]
+      .split(",")
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n));
+
+    // render bracket with each number linked
+    parts.push(
+      <span key={`cite-${start}`} className="whitespace-nowrap">
+        {"["}
+        {nums.map((n, i) => {
+          const idx = n - 1;
+          const url = citations[idx]?.url;
+
+          return (
+            <span key={`n-${start}-${n}`}>
+              {i > 0 ? ", " : ""}
+              {url ? (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline text-blue-400 hover:text-blue-300"
+                  title={`Open source #${n}`}
+                >
+                  {n}
+                </a>
+              ) : (
+                <span className="text-zinc-400">{n}</span>
+              )}
+            </span>
+          );
+        })}
+        {"]"}
+      </span>
+    );
+
+    last = end;
+  }
+
+  // remainder
+  if (last < text.length) parts.push(text.slice(last));
+
+  return <div className="whitespace-pre-wrap leading-relaxed">{parts}</div>;
+}
+
 export default function CrewAskPage() {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      content: "How can I help?"
-    }
+    { role: "assistant", content: "How can I help?" }
   ]);
 
   const [citations, setCitations] = useState<Citation[]>([]);
@@ -57,7 +120,10 @@ export default function CrewAskPage() {
     setEvidence([]);
     setShowEvidence(false);
 
-    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: q }];
+    const nextMessages: ChatMessage[] = [
+      ...messages,
+      { role: "user", content: q }
+    ];
     setMessages(nextMessages);
 
     try {
@@ -68,9 +134,10 @@ export default function CrewAskPage() {
       });
 
       const json = await res.json();
-      const answer = typeof json.answer === "string" && json.answer.trim()
-        ? json.answer.trim()
-        : "I didn’t get an answer back (empty response).";
+      const answer =
+        typeof json.answer === "string" && json.answer.trim()
+          ? json.answer.trim()
+          : "I didn’t get an answer back (empty response).";
 
       setMessages((prev) => [...prev, { role: "assistant", content: answer }]);
       setCitations(Array.isArray(json.citations) ? json.citations : []);
@@ -78,11 +145,17 @@ export default function CrewAskPage() {
     } catch (e: any) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `Request failed: ${String(e?.message || e)}` }
+        {
+          role: "assistant",
+          content: `Request failed: ${String(e?.message || e)}`
+        }
       ]);
     } finally {
       setLoading(false);
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      setTimeout(
+        () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
+        50
+      );
     }
   }
 
@@ -99,7 +172,9 @@ export default function CrewAskPage() {
         {/* Header Section */}
         <div className="flex items-end justify-between border-b border-zinc-800 pb-4">
           <div>
-            <h1 className="text-4xl font-bold tracking-tight text-white">Metalhead</h1>
+            <h1 className="text-4xl font-bold tracking-tight text-white">
+              Metalhead
+            </h1>
             <p className="text-xl text-zinc-400 font-medium">PizzaDAO</p>
           </div>
           <a
@@ -127,7 +202,9 @@ export default function CrewAskPage() {
             {messages.map((m, idx) => (
               <div
                 key={idx}
-                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex ${
+                  m.role === "user" ? "justify-end" : "justify-start"
+                }`}
               >
                 <div
                   className={[
@@ -137,7 +214,14 @@ export default function CrewAskPage() {
                       : "bg-zinc-900 border border-zinc-800 text-white"
                   ].join(" ")}
                 >
-                  {m.content}
+                  {m.role === "assistant" ? (
+                    <AnswerWithLinkedCitations
+                      text={m.content}
+                      citations={citations}
+                    />
+                  ) : (
+                    m.content
+                  )}
                 </div>
               </div>
             ))}
@@ -194,18 +278,27 @@ export default function CrewAskPage() {
             </div>
             <ul className="space-y-2 text-sm">
               {citations.slice(0, 10).map((c, idx) => (
-                <li key={`${c.spreadsheet_title ?? c.spreadsheet_id}-${idx}`} className="flex flex-col">
-                  <a
-                    href={c.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-400 hover:underline font-medium"
-                  >
-                    {c.spreadsheet_title}
-                  </a>
-                  <span className="text-zinc-500">
-                    {c.sheet_name} • {c.a1_range}
-                  </span>
+                <li
+                  key={`${c.spreadsheet_id}|${c.sheet_name}|${c.a1_range}|${idx}`}
+                  className="flex gap-3"
+                >
+                  <div className="shrink-0 w-10 text-zinc-500 font-semibold">
+                    [{idx + 1}]
+                  </div>
+
+                  <div className="flex flex-col">
+                    <a
+                      href={c.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-400 hover:underline font-medium"
+                    >
+                      {c.spreadsheet_title ?? c.spreadsheet_id}
+                    </a>
+                    <span className="text-zinc-500">
+                      {c.sheet_name} • {c.a1_range}
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -237,62 +330,59 @@ export default function CrewAskPage() {
         )}
       </div>
 
-{/* FIXED ICONS IN LOWER RIGHT CORNER */}
-<div className="fixed bottom-6 right-6 flex items-center gap-5 bg-zinc-900/40 backdrop-blur-sm p-3 px-4 rounded-2xl border border-zinc-800/50 shadow-2xl">
-  
-  {/* 1. Google Sheets Icon: Grey -> Green (#0F9D58) */}
-  <a
-    href="https://docs.google.com/spreadsheets/d/1Ztilc8EOJCZ8hg68_1_0ea9OjrQ7QivVFTIdQX5HjzQ/edit?gid=0#gid=0"
-    target="_blank"
-    rel="noreferrer"
-    className="text-zinc-400 hover:text-[#0F9D58] transition-all transform hover:scale-110"
-    title="Google Sheets"
-  >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="8" y1="13" x2="16" y2="13" />
-      <line x1="8" y1="17" x2="16" y2="17" />
-    </svg>
-  </a>
+      {/* FIXED ICONS IN LOWER RIGHT CORNER */}
+      <div className="fixed bottom-6 right-6 flex items-center gap-5 bg-zinc-900/40 backdrop-blur-sm p-3 px-4 rounded-2xl border border-zinc-800/50 shadow-2xl">
+        {/* 1. Google Sheets Icon: Grey -> Green (#0F9D58) */}
+        <a
+          href="https://docs.google.com/spreadsheets/d/1Ztilc8EOJCZ8hg68_1_0ea9OjrQ7QivVFTIdQX5HjzQ/edit?gid=0#gid=0"
+          target="_blank"
+          rel="noreferrer"
+          className="text-zinc-400 hover:text-[#0F9D58] transition-all transform hover:scale-110"
+          title="Google Sheets"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="8" y1="13" x2="16" y2="13" />
+            <line x1="8" y1="17" x2="16" y2="17" />
+          </svg>
+        </a>
 
-  {/* 2. GitHub Icon: Grey -> Green (#0F9D58) */}
-  <a
-    href="https://github.com/PizzaDAO/pizzadao-crew-qa"
-    target="_blank"
-    rel="noreferrer"
-    className="transition-all transform hover:scale-110"
-    title="GitHub Repo"
-  >
-    <img 
-      src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg" 
-      alt="GitHub"
-      className="w-6 h-6 transition-all duration-200"
-      style={{ 
-        // Default state: Muted Zinc/Grey
-        filter: 'invert(70%) brightness(80%)' 
-      }}
-      onMouseEnter={(e) => {
-        // Hover state: This filter approximates the #0F9D58 Green
-        e.currentTarget.style.filter = 'invert(42%) sepia(93%) saturate(1352%) hue-rotate(120deg) brightness(95%) contrast(101%)';
-      }}
-      onMouseLeave={(e) => {
-        // Return to Muted Grey
-        e.currentTarget.style.filter = 'invert(70%) brightness(80%)';
-      }}
-    />
-  </a>
-</div>
+        {/* 2. GitHub Icon: Grey -> Green (#0F9D58) */}
+        <a
+          href="https://github.com/PizzaDAO/pizzadao-crew-qa"
+          target="_blank"
+          rel="noreferrer"
+          className="transition-all transform hover:scale-110"
+          title="GitHub Repo"
+        >
+          <img
+            src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg"
+            alt="GitHub"
+            className="w-6 h-6 transition-all duration-200"
+            style={{
+              filter: "invert(70%) brightness(80%)"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.filter =
+                "invert(42%) sepia(93%) saturate(1352%) hue-rotate(120deg) brightness(95%) contrast(101%)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.filter = "invert(70%) brightness(80%)";
+            }}
+          />
+        </a>
+      </div>
     </div>
   );
 }
