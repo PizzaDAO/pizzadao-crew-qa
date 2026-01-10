@@ -103,6 +103,7 @@ export default function CrewAskPage() {
   const [showEvidence, setShowEvidence] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const latestAnswerRef = useRef<HTMLDivElement | null>(null);
 
   const canAsk = useMemo(
     () => question.trim().length > 0 && !loading,
@@ -153,7 +154,7 @@ export default function CrewAskPage() {
     } finally {
       setLoading(false);
       setTimeout(
-        () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
+        () => latestAnswerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
         50
       );
     }
@@ -199,32 +200,38 @@ export default function CrewAskPage() {
         {/* Conversation Window */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow-xl overflow-hidden">
           <div className="max-h-[46vh] overflow-y-auto p-4 space-y-4">
-            {messages.map((m, idx) => (
-              <div
-                key={idx}
-                className={`flex ${
-                  m.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
+            {messages.map((m, idx) => {
+              const isLatestAssistant =
+                m.role === "assistant" &&
+                idx === messages.length - 1;
+              return (
                 <div
-                  className={[
-                    "max-w-[90%] rounded-2xl px-4 py-3 whitespace-pre-wrap leading-relaxed",
-                    m.role === "user"
-                      ? "bg-white text-black font-medium"
-                      : "bg-zinc-900 border border-zinc-800 text-white"
-                  ].join(" ")}
+                  key={idx}
+                  ref={isLatestAssistant ? latestAnswerRef : null}
+                  className={`flex ${
+                    m.role === "user" ? "justify-end" : "justify-start"
+                  }`}
                 >
-                  {m.role === "assistant" ? (
-                    <AnswerWithLinkedCitations
-                      text={m.content}
-                      citations={citations}
-                    />
-                  ) : (
-                    m.content
-                  )}
+                  <div
+                    className={[
+                      "max-w-[90%] rounded-2xl px-4 py-3 whitespace-pre-wrap leading-relaxed",
+                      m.role === "user"
+                        ? "bg-white text-black font-medium"
+                        : "bg-zinc-900 border border-zinc-800 text-white"
+                    ].join(" ")}
+                  >
+                    {m.role === "assistant" ? (
+                      <AnswerWithLinkedCitations
+                        text={m.content}
+                        citations={citations}
+                      />
+                    ) : (
+                      m.content
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             <div ref={bottomRef} />
           </div>
 
