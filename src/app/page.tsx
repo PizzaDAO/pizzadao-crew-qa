@@ -178,12 +178,12 @@ export default function CrewAskPage() {
             <p className="text-xl text-zinc-400 font-medium">PizzaDAO</p>
           </div>
           <a
-            href="https://crew.pizzadao.xyz"
+            href="https://pizzadao.xyz/join"
             target="_blank"
             rel="noreferrer"
             className="text-sm underline text-zinc-500 hover:text-zinc-300 transition-colors"
           >
-            Crew Root
+            Join PizzaDAO
           </a>
         </div>
 

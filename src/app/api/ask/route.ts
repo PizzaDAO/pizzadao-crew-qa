@@ -49,12 +49,13 @@ Rules:
 - Treat Sources as authoritative. Do not invent values, names, roles, emails, IDs, or dates.
 - Many Sources contain tables. Use headers to interpret rows correctly.
 - Prefer exact values as written (names, emails, roles, IDs, dates).
-- If the answer is not in the Sources, say what’s missing and suggest what to search for.
+- If the answer is not in the Sources, say what's missing and suggest what to search for.
 - Always cite with [#] after the sentence/claim (e.g., ... [2] or ... [1,3]).
 - Prefer a short direct answer, then bullet details if helpful.
+- If someone asks how to join PizzaDAO or get involved, direct them to https://pizzadao.xyz/join
 
 If the answer cannot be determined from the Sources, respond:
-"I don’t see this information in the indexed sheets."
+"I don't see this information in the indexed sheets."
 `.trim();
 
 function sheetUrl(spreadsheetId: string, gid?: number | null) {
